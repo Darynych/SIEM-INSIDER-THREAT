@@ -123,7 +123,9 @@ Full step-by-step in [`ROADMAP.md`](ROADMAP.md).
 ## Screenshots
 
 | Detection rules (Kibana) | SOAR workflow (n8n) |
-|---|---|
+|<img width="806" height="636" alt="Screenshot 2026-09-22 122033" src="https://github.com/user-attachments/assets/0a2b517b-f0c8-4f56-94aa-8a0a1f5485a2" />
+|<img width="803" height="674" alt="Screenshot 2026-09-22 135009" src="https://github.com/user-attachments/assets/c087fc7c-2f2e-4448-bf26-9bee0195782f" />
+|
 | ![rules](docs/kibana-rules.png) | ![n8n](docs/n8n-workflow.png) |
 
 ## Roadmap
