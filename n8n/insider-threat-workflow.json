@@ -1,0 +1,208 @@
+{
+  "name": "Insider Threat SOAR",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "insider-threat",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "fe4e179e4711",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "3dd3add6b5d54989886ddcbd5aee21de"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0abe474b4888",
+              "name": "user",
+              "value": "={{ $json.body.user }}",
+              "type": "string"
+            },
+            {
+              "id": "a802e63e32c0",
+              "name": "host",
+              "value": "={{ $json.body.host }}",
+              "type": "string"
+            },
+            {
+              "id": "832e89254d7b",
+              "name": "source_ip",
+              "value": "={{ $json.body.source_ip }}",
+              "type": "string"
+            },
+            {
+              "id": "082bfc2b57bf",
+              "name": "rule",
+              "value": "={{ $json.body.rule }}",
+              "type": "string"
+            },
+            {
+              "id": "41e52bd53bd3",
+              "name": "severity",
+              "value": "={{ $json.body.severity }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "02d1799b28ae",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7324f361de76",
+              "leftValue": "={{ $json.severity }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a3fba94d77f7",
+      "name": "High severity?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://ip-api.com/json/{{ $json.source_ip }}",
+        "options": {}
+      },
+      "id": "646b6210fd3a",
+      "name": "Enrich source IP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"text\": \"Insider-threat alert: user {{ $('Normalize').item.json.user }} - rule {{ $('Normalize').item.json.rule }} ({{ $('Normalize').item.json.severity }}), src {{ $('Normalize').item.json.source_ip }}, geo {{ $json.country }}/{{ $json.city }}\" }",
+        "options": {}
+      },
+      "id": "8b534aeb3b1b",
+      "name": "Notify SOC (Slack)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=powershell -Command \"Disable-ADAccount -Identity {{ $('Normalize').item.json.user }}\""
+      },
+      "id": "7e40e046d92d",
+      "name": "Disable AD user (SSH to DC)",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "High severity?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High severity?": {
+      "main": [
+        [
+          {
+            "node": "Enrich source IP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Enrich source IP": {
+      "main": [
+        [
+          {
+            "node": "Notify SOC (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify SOC (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Disable AD user (SSH to DC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
