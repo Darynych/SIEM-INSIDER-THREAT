@@ -54,9 +54,9 @@ flowchart LR
 
 | Scenario | Signal | Windows event(s) | MITRE ATT&CK |
 |---|---|---|---|
-| Brute force / password spray | ≥ 8 failed logons for one user in 5 min | 4625 | T1110 |
+| Brute force / password spray | ≥ 8 failed logons for one user in 5 min | 4625, 4771, failed 4776 | T1110 |
 | Account lockout | repeated bad passwords | 4740 | T1110 |
-| Successful logon after repeated failures | failures → success (EQL sequence) | 4625 → 4624 | T1110 |
+| Successful logon after repeated failures | failures → success (EQL sequence) | 4625 or 4771 → 4624 | T1110 |
 | Windows Security log cleared | anti-forensics / evasion | 1102 | T1070.001 |
 | User added to a privileged group | privilege escalation / persistence | 4728 / 4732 / 4756 | T1098 |
 | New user account created | rogue-account persistence | 4720 | T1136 |

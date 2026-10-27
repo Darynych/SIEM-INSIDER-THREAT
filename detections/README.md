@@ -7,9 +7,9 @@ Six custom Elastic Security rules for the insider-threat lab, version-controlled
 
 | Rule | Type | Signal | Event IDs | Needs AD DC? |
 |---|---|---|---|---|
-| Excessive Failed Logons (Brute Force / Spray) | threshold (≥8 / 5 min per user) | brute force / password spray | 4625 | no |
+| Excessive Failed Logons (Brute Force / Spray) | threshold (≥8 / 5 min per user) | brute force / password spray | 4625, 4771, failed 4776 | no |
 | Account Lockout | query | repeated bad auth | 4740 | no |
-| Successful Logon After Repeated Failures | eql sequence | brute force that *succeeded* | 4625 → 4624 | no |
+| Successful Logon After Repeated Failures | eql sequence | brute force that *succeeded* | 4625 or 4771 → 4624 | no |
 | Windows Security Log Cleared | query | anti-forensics / evasion | 1102 | no |
 | User Added to Privileged Group | query | privilege escalation | 4728 / 4732 / 4756 | **yes** |
 | New User Account Created | query | rogue-account persistence | 4720 | **yes** |
@@ -31,7 +31,7 @@ The file is in this repo on your Windows host, and you import through the Kibana
 ## Or create one by hand (the brute-force rule, to learn the flow)
 Security → Rules → **Create new rule** → **Threshold** →
 - Index: `logs-*`
-- Custom query: `event.code:"4625"`
+- Custom query: `event.code:("4625" or "4771") or (event.code:"4776" and event.outcome:"failure")` (a DC logs guesses against domain accounts as 4771, not 4625)
 - Group by: `user.name`, Threshold: `8`
 - Schedule: run every `5m`, look back `6m`
 - Severity `High`, Risk score `73` → Create & enable.
