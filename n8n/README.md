@@ -4,11 +4,25 @@ The automation "brain". A webhook receives an alert (from an Elastic detection r
 **or** the ML detector), and n8n runs the response:
 
 ```
-Webhook  ->  Normalize  ->  High severity?  --yes-->  Enrich source IP (ip-api)
-                                   |                        ->  Notify SOC (Slack)
-                                   |                        ->  Disable AD user (SSH to the DC)
-                                   +--no--> (drop / log only)
+Webhook -> Normalize -> High severity + valid user? --no--> (drop)
+                                  | yes
+                                  v
+            Enrich source IP (ip-api) -> Notify SOC + Approve/Deny links (Slack)
+                                  -> Wait for analyst (max 1 h)
+                                  -> Approved? --no--> Report no action
+                                  | yes
+                                  -> Dry run? --yes--> Report "would disable"
+                                  | no
+                                  -> Disable AD user (SSH to DC as LAB\svc_n8n) -> Report outcome
 ```
+
+- **`dry_run`** (a constant in *Normalize*, default `true`) — set it to `false` only for the live demo.
+- **Approval gate** — the Slack message carries `$execution.resumeUrl?decision=approve|deny`. If nobody clicks within an hour, the workflow takes no action.
+- **Input validation** — the username is checked against `^[A-Za-z0-9._-]{1,20}$` before it goes into a PowerShell command on the DC. Without this check, a crafted alert could run commands on the DC.
+- The AD side (DC, `svc_n8n` account, OpenSSH) is built by [`../provisioning/`](../provisioning/).
+
+> The approval links point at n8n's own URL. If n8n runs in Docker, start it with
+> `-e WEBHOOK_URL=http://192.168.56.10:5678/` (or whichever host it runs on). Otherwise the links say `localhost`, and clicking them from another machine won't work.
 
 `insider-threat-workflow.json` is importable. Nodes use only built-in n8n node types.
 
@@ -27,9 +41,10 @@ n8n editor -> top-right **⋮ menu -> Import from File** -> pick `insider-threat
 ## 3. Configure the three external touch-points
 - **Notify SOC (Slack):** replace the URL in that node with your Slack **Incoming Webhook**
   URL (Slack -> Apps -> Incoming Webhooks). Prefer email? Swap it for the Send Email node.
-- **Disable AD user (SSH):** add an **SSH credential** on that node pointing at your Domain
-  Controller (with OpenSSH for Windows + a least-privilege service account that can only
-  disable users in your lab OU). No DC yet? Just **disable this node** for now — the rest runs.
+- **Disable AD user (SSH):** add an **SSH (password) credential**: host `192.168.56.20`, port 22,
+  user `lab\svc_n8n`, the password you set in `03-populate-ad.ps1`. No DC yet? Leave `dry_run = true`
+  and the SSH node never runs.
+- **Report outcome / Report no action:** use the same Slack webhook URL as *Notify SOC*.
 - **Enrich source IP:** works as-is (ip-api.com, free, no key).
 
 Then click **Active** (top-right) and copy the **Production URL** of the Webhook node —

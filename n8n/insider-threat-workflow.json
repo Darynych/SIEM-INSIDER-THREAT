@@ -12,46 +12,19 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        240,
-        300
-      ],
+      "position": [240, 300],
       "webhookId": "3dd3add6b5d54989886ddcbd5aee21de"
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
-            {
-              "id": "0abe474b4888",
-              "name": "user",
-              "value": "={{ $json.body.user }}",
-              "type": "string"
-            },
-            {
-              "id": "a802e63e32c0",
-              "name": "host",
-              "value": "={{ $json.body.host }}",
-              "type": "string"
-            },
-            {
-              "id": "832e89254d7b",
-              "name": "source_ip",
-              "value": "={{ $json.body.source_ip }}",
-              "type": "string"
-            },
-            {
-              "id": "082bfc2b57bf",
-              "name": "rule",
-              "value": "={{ $json.body.rule }}",
-              "type": "string"
-            },
-            {
-              "id": "41e52bd53bd3",
-              "name": "severity",
-              "value": "={{ $json.body.severity }}",
-              "type": "string"
-            }
+            { "id": "0abe474b4888", "name": "user", "value": "={{ String($json.body.user ?? '').replace(/^LAB\\\\/i, '').trim() }}", "type": "string" },
+            { "id": "a802e63e32c0", "name": "host", "value": "={{ $json.body.host }}", "type": "string" },
+            { "id": "832e89254d7b", "name": "source_ip", "value": "={{ $json.body.source_ip }}", "type": "string" },
+            { "id": "082bfc2b57bf", "name": "rule", "value": "={{ $json.body.rule }}", "type": "string" },
+            { "id": "41e52bd53bd3", "name": "severity", "value": "={{ String($json.body.severity ?? '').toLowerCase() }}", "type": "string" },
+            { "id": "5c1d2e3f4a5b", "name": "dry_run", "value": true, "type": "boolean" }
           ]
         },
         "options": {}
@@ -60,28 +33,25 @@
       "name": "Normalize",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        460,
-        300
-      ]
+      "position": [460, 300],
+      "notes": "dry_run = true: logs 'would disable' instead of touching AD. Flip to false for the live demo."
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "typeValidation": "loose",
-            "version": 2
-          },
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
           "conditions": [
             {
               "id": "7324f361de76",
-              "leftValue": "={{ $json.severity }}",
-              "rightValue": "high",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
+              "leftValue": "={{ ['high', 'critical'].includes($json.severity) }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            },
+            {
+              "id": "9a8b7c6d5e4f",
+              "leftValue": "={{ $json.user }}",
+              "rightValue": "^[A-Za-z0-9._-]{1,20}$",
+              "operator": { "type": "string", "operation": "regex" }
             }
           ],
           "combinator": "and"
@@ -89,13 +59,11 @@
         "options": {}
       },
       "id": "a3fba94d77f7",
-      "name": "High severity?",
+      "name": "High severity + valid user?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [
-        680,
-        300
-      ]
+      "position": [680, 300],
+      "notes": "The username ends up in a PowerShell command on the DC, so only plain sAMAccountNames pass (blocks command injection)."
     },
     {
       "parameters": {
@@ -106,10 +74,8 @@
       "name": "Enrich source IP",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        900,
-        220
-      ]
+      "position": [900, 220],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -117,92 +83,139 @@
         "url": "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"text\": \"Insider-threat alert: user {{ $('Normalize').item.json.user }} - rule {{ $('Normalize').item.json.rule }} ({{ $('Normalize').item.json.severity }}), src {{ $('Normalize').item.json.source_ip }}, geo {{ $json.country }}/{{ $json.city }}\" }",
+        "jsonBody": "={{ JSON.stringify({ text: `:rotating_light: *Insider-threat alert*\\n*Rule:* ${$('Normalize').item.json.rule} (${$('Normalize').item.json.severity})\\n*User:* ${$('Normalize').item.json.user}   *Host:* ${$('Normalize').item.json.host}\\n*Source:* ${$('Normalize').item.json.source_ip} ${$json.status === 'success' ? '(' + $json.country + ', ' + $json.isp + ')' : '(internal / no geo)'}\\n\\nDisable this AD account?\\n:white_check_mark: <${$execution.resumeUrl}?decision=approve|Approve>    :x: <${$execution.resumeUrl}?decision=deny|Deny>` }) }}",
         "options": {}
       },
       "id": "8b534aeb3b1b",
-      "name": "Notify SOC (Slack)",
+      "name": "Notify SOC + ask approval",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1120,
-        220
-      ]
+      "position": [1120, 220]
     },
     {
       "parameters": {
-        "command": "=powershell -Command \"Disable-ADAccount -Identity {{ $('Normalize').item.json.user }}\""
+        "resume": "webhook",
+        "options": {},
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 1,
+        "resumeUnit": "hours"
       },
+      "id": "b1c2d3e4f5a6",
+      "name": "Wait for analyst",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 220],
+      "webhookId": "7f0e2a9c41b84d6e9a3c5b1d2e4f6a80"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
+          "conditions": [
+            {
+              "id": "c3d4e5f6a7b8",
+              "leftValue": "={{ $json.query?.decision }}",
+              "rightValue": "approve",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4e5f6a7b8c9",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
+          "conditions": [
+            {
+              "id": "e5f6a7b8c9d0",
+              "leftValue": "={{ $('Normalize').item.json.dry_run }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f6a7b8c9d0e1",
+      "name": "Dry run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 140]
+    },
+    {
+      "parameters": {
+        "command": "=Disable-ADAccount -Identity '{{ $('Normalize').item.json.user }}' -ErrorAction Stop; $u = Get-ADUser '{{ $('Normalize').item.json.user }}'; '{0} enabled={1}' -f $u.SamAccountName, $u.Enabled"
+      },
+      "notes": "The DC's sshd default shell is PowerShell (set by provisioning/03-populate-ad.ps1), so this runs as plain PowerShell as LAB\\svc_n8n.",
       "id": "7e40e046d92d",
       "name": "Disable AD user (SSH to DC)",
       "type": "n8n-nodes-base.ssh",
       "typeVersion": 1,
-      "position": [
-        1340,
-        220
-      ]
+      "position": [2000, 220],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Normalize').item.json.dry_run ? `:test_tube: DRY RUN - would disable *${$('Normalize').item.json.user}* (approved by analyst)` : ($json.stdout ? `:lock: Contained: ${$json.stdout}` : `:warning: Disable FAILED for ${$('Normalize').item.json.user}: ${$json.stderr || $json.error?.message || 'unknown error'}`) }) }}",
+        "options": {}
+      },
+      "id": "a7b8c9d0e1f2",
+      "name": "Report outcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2220, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: `:no_entry_sign: No action on *${$('Normalize').item.json.user}* - analyst denied or approval timed out.` }) }}",
+        "options": {}
+      },
+      "id": "b8c9d0e1f2a3",
+      "name": "Report no action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 340]
     }
   ],
   "connections": {
-    "Webhook": {
+    "Webhook": { "main": [[{ "node": "Normalize", "type": "main", "index": 0 }]] },
+    "Normalize": { "main": [[{ "node": "High severity + valid user?", "type": "main", "index": 0 }]] },
+    "High severity + valid user?": { "main": [[{ "node": "Enrich source IP", "type": "main", "index": 0 }], []] },
+    "Enrich source IP": { "main": [[{ "node": "Notify SOC + ask approval", "type": "main", "index": 0 }]] },
+    "Notify SOC + ask approval": { "main": [[{ "node": "Wait for analyst", "type": "main", "index": 0 }]] },
+    "Wait for analyst": { "main": [[{ "node": "Approved?", "type": "main", "index": 0 }]] },
+    "Approved?": {
       "main": [
-        [
-          {
-            "node": "Normalize",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Dry run?", "type": "main", "index": 0 }],
+        [{ "node": "Report no action", "type": "main", "index": 0 }]
       ]
     },
-    "Normalize": {
+    "Dry run?": {
       "main": [
-        [
-          {
-            "node": "High severity?",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Report outcome", "type": "main", "index": 0 }],
+        [{ "node": "Disable AD user (SSH to DC)", "type": "main", "index": 0 }]
       ]
     },
-    "High severity?": {
-      "main": [
-        [
-          {
-            "node": "Enrich source IP",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Enrich source IP": {
-      "main": [
-        [
-          {
-            "node": "Notify SOC (Slack)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Notify SOC (Slack)": {
-      "main": [
-        [
-          {
-            "node": "Disable AD user (SSH to DC)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Disable AD user (SSH to DC)": { "main": [[{ "node": "Report outcome", "type": "main", "index": 0 }]] }
   },
-  "settings": {
-    "executionOrder": "v1"
-  },
+  "settings": { "executionOrder": "v1" },
   "active": false
 }
