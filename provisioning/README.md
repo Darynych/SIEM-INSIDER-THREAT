@@ -22,7 +22,7 @@ Run each script from an **elevated** PowerShell, and first run `Set-ExecutionPol
 | Host (your laptop) | 192.168.56.1 | Kibana in the browser, n8n (if run on the host) |
 | siem server | 192.168.56.10 | Elasticsearch, Kibana, Fleet Server |
 | **DC01** | **192.168.56.20** | Domain controller + DNS for `lab.local` |
-| WS01 (WinDev2407Eval) | DHCP | Domain-joined client |
+| WS01 (WinDev2407Eval) | 192.168.56.30 (static: host-only DHCP gave it no address) | Domain-joined client |
 
 RAM: SIEM 11 GB + DC 4 GB + client 8 GB ≈ 23 GB of your 32 GB. If things get slow, lower the client to 4 GB.
 

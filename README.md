@@ -2,6 +2,8 @@
 
 > A home-lab SOC pipeline that detects **insider-threat** behaviour across Windows / Active Directory and Linux, and **responds automatically** — built with **Elastic SIEM**, an **Isolation Forest** ML model, and an **n8n SOAR** workflow.
 
+> 🚧 **Work in progress.** I'm still configuring this lab, so some steps may change and new parts (detections, response actions, the live ML feed, dashboards) will be added over time.
+
 ![Elastic](https://img.shields.io/badge/SIEM-Elastic%20Stack%208.x-005571?logo=elastic&logoColor=white)
 ![Python](https://img.shields.io/badge/ML-Python%20%2B%20scikit--learn-3776AB?logo=python&logoColor=white)
 ![n8n](https://img.shields.io/badge/SOAR-n8n-EA4B71?logo=n8n&logoColor=white)
@@ -134,8 +136,8 @@ Full step-by-step in [`ROADMAP.md`](ROADMAP.md).
 - [x] Detection rules as code (imported & running)
 - [x] Isolation Forest ML anomaly detection
 - [x] n8n SOAR workflow — tested end-to-end (detect → enrich → alert)
-- [ ] Active Directory Domain Controller — makes the AD detections & auto-disable live
-- [ ] Manual-approval gate before the account-disable action
+- [x] Active Directory Domain Controller (`lab.local`) with a domain-joined workstation, logs flowing to Elastic
+- [x] Manual-approval gate before the account-disable action
 - [ ] Kibana dashboard for insider-threat KPIs
 
 ## Lessons learned
